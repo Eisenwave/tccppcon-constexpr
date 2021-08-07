@@ -1,0 +1,350 @@
+<meta charset="UTF-8">
+<html lang="de_de">
+<head>
+    <title></title>
+    <meta content="">
+
+    <link rel="stylesheet" type="text/css" href="css/fonts.css">
+
+    <script id="script-user-constants">
+        const HIDE_COMMENTS = false;
+        const NO_SMOOTH_SCROLL = true;
+
+        if (NO_SMOOTH_SCROLL)
+            document.getElementsByTagName("html").item(0).style.scrollBehavior = "auto";
+    </script>
+
+    <link rel="stylesheet" type="text/css" href="css/style.css">
+    <link rel="stylesheet"
+          href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.1.0/styles/atom-one-dark.min.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.1.0/highlight.min.js"></script>
+</head>
+<body>
+
+<section>
+    <h1 id="landing" data-type="slide-header">C++ Metaprogramming With <code>constexpr</code></h1>
+    <img class="centered" src="img/tccppcon.png" width="500" style="margin-top: 40px; margin-left: 12em">
+    <ul style="font-size: 100%; margin-left: 10em; font-weight: bold">
+        <li>motivation: C++98 metaprogramming</li>
+        <li>C++11 through C++20 constexpr</li>
+        <li><code>constinit</code>, <code>consteval</code>, pitfalls</li>
+        <li><code>constexpr</code> support in standard library</li>
+        <li>15 min Q&A</li>
+    </ul>
+</section>
+
+<section style="margin-top: 0">
+    <h1 id="heading-function-templates" data-type="slide-header">Introduction: Metaprogramming and C++98</h1>
+
+    <ul>
+        <li><b>Idea:</b> some information known at compile time, but hard/impossible to hardcode
+            <ul>
+                <li>precise constants, e.g. &pi;</li>
+                <li>constants dependent on template parameters</li>
+                <li>lookup tables</li>
+            </ul>
+        </li>
+        <li><b>Solution:</b> Metaprogramming</li>
+    </ul>
+    <pre class="codeblock language-cpp" data-reveal="1">
+// Ideally: use factorial at compile time like any other function
+unsigned factorial(unsigned n) {
+    return n == 0 ? 1 : n * factorial(n - 1);
+}
+
+// C++98: template metaprogramming
+template &lt;unsigned N&gt;
+struct factorial {
+    /* ... */
+};
+</pre>
+</section>
+
+<section>
+    <h1 id="non-type-template-parameters" data-type="slide-header"><code>constexpr</code> Keyword (since C++11)</h1>
+    <div>
+        <p><code>constexpr</code> ...</p>
+        <ul>
+            <li>implies <code>const</code> for variables, <code>inline</code> for global functions</li>
+            </li>
+            <li class="li-checkmark-button">makes our function calls, variable uses constant expressions</li>
+            <li class="li-arrow">results can be used as template arguments, array sizes, etc.</li>
+            <li class="li-checkmark-button">constructors allow for constant initialization (for <i>literal types</i>)
+            </li>
+        </ul>
+    </div>
+    <div data-reveal="1">
+        <p><code>constexpr</code> puts heavy restrictions on our functions:</p>
+        <ul>
+            <li class="li-prohibited">no <code>void</code> return type, no <code>virtual</code></li>
+            <li class="li-prohibited">only <i>literal types</i> as inputs and outputs</li>
+            <li class="li-prohibited">needs to be defined before used (can't split into header/source file)</li>
+            <li class="li-prohibited">one set of inputs must produce constant expression</li>
+            <li class="li-prohibited" data-reveal="2"><b>only evaluated statement allowed is a single <code>return</code></b></li>
+        </ul>
+    </div>
+</section>
+
+<section>
+    <h1 id="why-these-restrictions" data-type="slide-header">Why All These Restrictions?</h1>
+
+    <div>
+        <h3><code>constexpr</code> Affects Compilation</h3>
+        <pre class="codeblock language-cpp">
+constexpr std::size_t compute_size() { return ...; }
+
+constexpr std::array&lt;int, compute_size()&gt; stuff create_lut() { return ...; }
+
+constexpr auto lut = create_lut();
+</pre>
+        <p data-reveal="1"><b>Consequence:</b> <code>constexpr</code> functions interpreted, not compiled</p>
+    </div>
+
+    <div data-reveal="2">
+        <h3 style="margin-top: 48px"><code>constexpr</code> functions must be <i>pure</i></h3>
+        <ul>
+            <li>same inputs &rArr; same outputs (determinism)</li>
+            <li>no side effects (mutation of references, global variables, etc.) (until C++14)</li>
+        </ul>
+    </div>
+</section>
+
+<section>
+    <h1 id="cpp14-relaxations" data-type="slide-header">C++14 Relaxations on <code>constexpr</code> Functions
+    </h1>
+    <ul style="margin-top: 2em">
+        <li class="li-checkmark-button">almost all statements now usable in constexpr functions, except ...
+            <ul>
+                <li class="li-prohibited"><code>goto</code> and labels (except <code>case</code>, <code>default</code>)
+                </li>
+                <li class="li-prohibited"><code>try</code>, <code>catch</code>, <code>asm</code></li>
+                <li class="li-prohibited">definition of <i>non-literal</i> variables</li>
+                <li class="li-prohibited">definition of <code>static</code>/<code>extern</code> variables</li>
+                <li class="li-prohibited">uninitialized variables, uninitialized members for <code>constexpr</code>
+                    constructors
+                </li>
+            </ul>
+        </li>
+        <li class="li-checkmark-button" data-reveal="1"><code>void</code> return types allowed</li>
+        <li class="li-checkmark-button" data-reveal="2">more expressions now constant expressions (e.g. <code>++</code>)
+        </li>
+    </ul>
+</section>
+
+<section>
+    <h1 id="cpp17-relaxations" data-type="slide-header">C++17 Relaxations <code>constexpr</code> Functions</h1>
+    <ul>
+        <li><code>constexpr</code> implies <code>inline</code> for <code>static</code> data members</li>
+        <li class="li-checkmark-button">closure types i.e. <i>"lambdas"</i> are <i>literal types</i></li>
+        <li class="li-checkmark-button">lambda expressions in constant expressions</li>
+        <li class="li-checkmark-button">only one union member needs to be <i>literal</i></li>
+    </ul>
+    <div>
+        <h4><i>Constexpr if</i> statement, <i>"Type Deciding Function Idiom"</i></h4>
+        <pre class="codeblock language-cpp">
+template &lt;typename L, typename R&gt;
+constexpr auto max_type_impl() {
+    if constexpr (sizeof(R) > sizeof(L)) return R{};
+    else return L{};
+}
+
+template &lt;typename L, typename R&gt;
+using max_type = decltype(max_type&lt;L, R&gt;());
+// alternative:  std::conditional_t&lt;sizeof(R) > sizeof(L), R, L>;
+</pre>
+    </div>
+</section>
+
+<section>
+    <h1 id="cpp20-relaxations" data-type="slide-header">C++20 Relaxations on <code>constexpr</code> Functions</h1>
+    <ul style="margin-top: 2em">
+        <li class="li-checkmark-button"><code>virtual</code> member functions, destructors</li>
+        <li class="li-checkmark-button">uninitialized variables, data members</li>
+        <li class="li-checkmark-button"><code>try</code>, <code>asm</code> allowed, but can't actually evaluate</li>
+        <li class="li-checkmark-button">
+            <code>std::is_constant_evaluated</code>, <code>std::construct_at</code>,<code>std::bit_cast</code>
+        </li>
+    </ul>
+    <div data-reveal="1">
+        <h4><code>new</code> and <code>delete</code> in <code>constexpr</code> Functions</h4>
+        <pre class="codeblock language-cpp">
+constexpr void use_memory() {
+    int *x = new int;
+    delete x; // OK, x is deleted before end of function
+}
+
+constexpr std::string use_string() {
+    return "hi"; // OK, but only supported by MSVC right now
+}
+</pre>
+    </div>
+</section>
+
+<section>
+    <h1 id="cpp20-constinit-consteval" data-type="slide-header">C++20 <code>constinit</code> And <code>consteval</code>
+    </h1>
+    <h4><code>constinit</code></h4>
+    <p style="margin-top: 0">Requests <i>zero initialization</i> or <i>constant initialization</i> for variable</p>
+    <pre class="codeblock language-cpp">
+constinit int x = constexpr_function();
+x = 5; // OK, constinit does not imply const
+</pre>
+
+    <div data-reveal="1">
+        <h4><code>consteval</code></h4>
+        <p style="margin-top: 0">Makes a function <i>immediate function</i>, so all calls must produce constant
+            expressions.</p>
+        <pre class="codeblock language-cpp">
+consteval int sqr(int n) { return n * n; }
+
+int x = 100, x2 = sqr(x);   // Error: Call does not produce a constant
+
+constexpr int dblsqr(int n) {
+  return 2 * sqr(n);        // Error: Enclosing function is not consteval
+}
+</pre>
+    </div>
+</section>
+
+<section>
+    <h1 id="constexpr-is-const-plus-constinit" data-type="slide-header">
+        <code>constexpr</code> Is <code>constinit</code> Plus <code>const</code>
+    </h1>
+    <p><code>constexpr</code> makes our variables usable at compile time, but we need to consider storage</p>
+    <pre class="codeblock language-cpp">
+template &lt;unsigned&gt;
+void fun();
+
+void select_and_call(unsigned n) {
+    // array of pointers to void(void) functions
+    constexpr void(*table[])(void) {
+        &fun<0>,
+        &fun<1>,
+        &fun<2>,
+        &fun<3>
+    };
+    table[n]();
+}
+</pre>
+</section>
+
+<section>
+    <h1 id="constexpr-in-the-standard-library" data-type="slide-header">
+        <code>constexpr</code> Support In The Standard Library
+    </h1>
+    <ul>
+        <li class="li-checkmark-button">most containers, algorithms, utility functions now <code>constexpr</code></li>
+        <li class="li-prohibited">
+            many nuisances, e.g. <code>std::move</code> since C++14, <code>std::swap</code> since C++20
+        </li>
+        <li class="li-prohibited">algorithms only <code>constexpr</code> since C++20</li>
+        <li class="li-prohibited">
+            <code>std::string</code>, <code>std::vector</code>, <code>std::optional</code> et al. since C++20
+        </li>
+        <li class="li-prohibited">many things not <code>constexpr</code> in practice</li>
+        <li class="li-prohibited">no <code>constexpr</code> math functions</li>
+    </ul>
+    <div data-reveal="1">
+        <h3>Compiler Magic Enhancing <code>constexpr</code> Capabilities</h3>
+        <ul>
+            <li>constant expression detection (until C++17) &rArr; <code>std::is_constant_evaluated</code></li>
+            <li>no <i>placement-new</i> &rArr; <code>std::construct_at</code></li>
+            <li>no <code>std::memcpy</code> type punning &rArr; <code>std::bit_cast</code></li>
+            <li>type traits, concepts, enhanced by <i>constexpr if</i> statement, etc.</li>
+        </ul>
+    </div>
+</section>
+
+<section>
+    <h1 id="cpp23-outlook" data-type="slide-header">C++23: Outlook</h1>
+    <div>
+        <h4 style="margin-top: 1.5em"><i>Consteval if</i> statement: <code>if consteval</code> [p1938]</h4>
+        <p>Similar to <code>std::is_constant_evaluated</code>, but creates <i>immediate function context</i></p>
+    </div>
+    <div data-reveal="1">
+        <h4 style="margin-top: 1.5em">Missing <code>constexpr</code> in <code>std::optional</code> and <code>std::variant</code>
+            [p2231]</h4>
+        <p>Fixes missing <code>constexpr</code> in standard library using <code>std::construct_at</code></p>
+    </div>
+    <div data-reveal="2">
+        <h4 style="margin-top: 1.5em"><code>constexpr</code> class [p2350]</h4>
+        <pre class="codeblock language-cpp">
+class SomeType constexpr {
+    /* implicitly constexpr */ void some_function();
+};
+</pre>
+        <p>Similar to <code>final</code>, makes all member functions <code>constexpr</code></p>
+    </div>
+</section>
+
+<section>
+    <h1 id="sources" data-type="slide-header">Also See</h1>
+    <div style="font-size: 92%">
+        <h4>cppreference.com</h4>
+        <ul>
+            <li><a href="https://en.cppreference.com/w/cpp/language/constexpr">Constexpr specifier</a></li>
+            <li><a href="https://en.cppreference.com/w/cpp/named_req/LiteralType">
+                C++ named requirements: <i>LiteralType</i>
+            </a></li>
+            <li><a href="https://en.cppreference.com/w/cpp/language/constant_expression">Constant expressions</a></li>
+        </ul>
+        <h4>open-std.org</h4>
+        <ul>
+            <li><a href="http://www.open-std.org/JTC1/SC22/WG21/docs/papers/2021/">C++ 2021 Paper Submissions</a></li>
+        </ul>
+        <h4>C++ Standards</h4>
+        <ul>
+            <li><a href="https://timsong-cpp.github.io/cppwp/n3337/">C++11 [n3337]</a></li>
+            <li><a href="https://timsong-cpp.github.io/cppwp/n4140/">C++14 [n4140]</a></li>
+            <li><a href="https://timsong-cpp.github.io/cppwp/n4659/">C++17 [n4659]</a></li>
+            <li><a href="https://timsong-cpp.github.io/cppwp/n4868/">C++20 [n4868]</a></li>
+            <li><a href="https://eel.is/c++draft/">C++23 (current working draft) [n4885]</a></li>
+        </ul>
+    </div>
+</section>
+
+<section>
+    <h1 id="q-and-a" data-type="slide-header">Q&A</h1>
+    <img class="centered" src="img/tccppcon.png" width="500" style="margin-top: 88px;">
+    <span style="text-align: center; font-size: 340%; font-weight: bold;" class="centered">Q & A</span>
+</section>
+
+<!-------------------------------------------------- END OF CONTENT -------------------------------------------------->
+
+<!-- SLIDE HEADER (gets pasted into all other slides) -->
+<header id="slide-header-container" class="slide-header-container">
+    <img src="img/tccpp_logo-01.svg" alt="TCCPP Logo" class="header-logo"/>
+</header>
+
+<div id="slide-header-separator" class="slide-header-separator">
+    <b>Date:</b> <span class="mono">2021-08-07</span>
+    &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+    <b>Presenter:</b> <span class="mono">Eisenwave#7675</span>
+    <span class="slide-header-invite">discord.gg/tccpp</span>
+</div>
+
+<div id="slide-header-right" class="slide-header-right">
+    Slide
+    <span data-type="slide-num"></span><br>
+    <span data-type="timer"></span>
+</div>
+
+
+<!-- SCRIPTS -->
+<script id="script-preprocess" src="js/preprocess.js"></script>
+<script id="script-placeholders" src="js/placeholders.js"></script>
+<script id="script-navigation" src="js/navigation.js"></script>
+<script id="script-controls" src="js/controls.js" async></script>
+
+<script id="script-main">
+    // trigger identifying current slide and positioning correctly
+    jumpSlidesRelative(0);
+</script>
+<script>
+    document.querySelectorAll('.codeblock').forEach((el) => {
+        hljs.highlightElement(el);
+    });
+</script>
+
+</body>
+</html>
